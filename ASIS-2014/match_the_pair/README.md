@@ -82,8 +82,13 @@ http://docs.opencv.org/modules/imgproc/doc/feature_detection.html?highlight=houg
 ```
 Here you can see where opencv struggled a little to find the image... but was good enough!
 ![alt tag](https://raw.githubusercontent.com/psmitty7373/ctf-writeups/master/ASIS-2014/match_the_pair/1out.png)
+
+
 And here opencv was right on...
+
 ![alt tag](https://raw.githubusercontent.com/psmitty7373/ctf-writeups/master/ASIS-2014/match_the_pair/pics/3out.png)
+
+
 3. The colors were never exact... sometimes the were quite different.  I discovered that you had to find the "closest" match.  I did this by comparing RGB values and finding how different each circle was.  I didn't do this the best way, but it worked:
 ```bash
 dist = abs(int(i[1]) - int(j[1])) + abs(int(i[2]) - int(j[2])) + abs(int(i[3]) - int(j[3]))
@@ -112,4 +117,7 @@ for i in threads:
     i.join()
 ```
 5. Once the code was working, I just let it plow through 40 levels hoping for the best.  Once the code hit level 40, I saw instead of "done" the server returned "Go \/flag".  Visiting the site with the same session id gives us the flag:
+```bash
+ASIS_28ca740e382225131fc0501d38cf5d30
+```
 
