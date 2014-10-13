@@ -77,6 +77,9 @@ for k in range(0,41):
             for (x, y, r) in circles:
                 print str(i) + ': ' + str(image[y,x,2]) + ',' + str(image[y,x,1]) + ',' + str(image[y,x,0])
                 colors.append((i, image[y,x,2], image[y,x,1], image[y,x,0]))
+                cv2.circle(output, (x, y), r, (0, 255, 0), 4)
+                cv2.rectangle(output, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
+                cv2.imwrite("pics\\" + str(i) + 'out.png', np.hstack([image, output]))
                 i += 1
                 break
         else:
