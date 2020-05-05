@@ -1,7 +1,5 @@
 # ACI Cyberstakes 2020: do_c_what_i_c
 
-![alt tag](https://raw.githubusercontent.com/psmitty7373/ctf-writeups/master/ASIS-2014/match_the_pair/1.png)
-
 ## The Challenge
 
 This challenge was a 300pt Windows binary exploit.  The challenge grants you a copy of the do_you_c_what_i_c.exe file and access to a docker container running the service.  The hints indicate that stack cookies are in play and that some memory protections may be disabled.
@@ -25,15 +23,15 @@ Authenticode    : false
 .NET            : true
 ```
 
-So I assumed it'd be enabled on the target system.  All of my exploitation work below relied on that (false) assumption.  Another solution to this challenge could have just placed executable code on the stack and been horrendiously easier.
+So I assumed it'd be enabled on the target system.  All of my exploitation work below relied on that (false) assumption.  Another solution to this challenge could have just placed executable code on the stack and been horrendously easier.
 
 I also assumed we'd be dealing with ASLR.  (This assumption was correct.)
 
-The target binary is a 32-bit exe file thats purpose is to help the user remember numbers.  It allows the user to write hex encoded numbers to indexed memory positions in a buffer that is sized to hold 256 4-byte values.  The program allows reading from the buffer and sends output in hex encoded strings.  The program is console based and uses a simple menu system to allow the user to select between the write and read functions.
+The target binary is a 32-bit exe file that's purpose is to help the user remember numbers.  It allows the user to write hex encoded numbers to indexed memory positions in a buffer that is sized to hold 256 4-byte values.  The program allows reading from the buffer and sends output in hex encoded strings.  The program is console based and uses a simple menu system to allow the user to select between the write and read functions.
 
 ![alt tag](https://raw.githubusercontent.com/psmitty7373/ctf-writeups/master/ACI-CS-2020/do_you_c_what_i_c/01.png)
 
-The ultimate goal is to obtain a copy of a flag.txt file that is located in d:\.  The majority of the work of the program is done in two functions.  The first I labelled "listener" which runs the listener socket and accepts incoming connections.  The second I labelled "connection handler" which does the job of recieving user input, processing input / output to the number buffer, and returning data to the user via the socket connection.
+The ultimate goal is to obtain a copy of a flag.txt file that is located in d:\.  The majority of the work of the program is done in two functions.  The first I labelled "listener" which runs the listener socket and accepts incoming connections.  The second I labelled "connection handler" which does the job of receiving user input, processing input / output to the number buffer, and returning data to the user via the socket connection.
 
 ## The vulnerabilities
 
@@ -49,11 +47,11 @@ Finally, the program also had a buffer overflow in the write function with the b
 
 ## Lost
 
-My false assumption about NX protection lead me down some windy paths to nowhere.  First I, considered exploiting the Structured Exception Handler chain.  But those values were too far down the stack to overwrite.  Next I considered using the restricted write ability and format strings and calls to printf to create a fully arbitrary write.  This was partically successful.  I was able to use negative offsets on the write function to overwrite the format string.  The only problem was that it turns out Windows disables the "%n" operator by default for safety.
+My false assumption about NX protection led me down some windy paths to nowhere.  First, I considered exploiting the Structured Exception Handler chain.  But those values were too far down the stack to overwrite with our limited write capability.  Next, I considered using the restricted write and format strings and calls to printf to create a fully arbitrary write.  This was partially successful.  I was able to use negative offsets on the write function to overwrite the format string.  The only problem was that it turns out Windows disables the "%n" operator by default for safety.
 
 ## The Hard Way
 
-Finally, I settled on a course of action.  I would use ROP to open the flag in "d:\flag.txt" and read it into the number buffer, and send it via the socket.  I would use the functions _sopen_s and _read from the uartbase.dll.  These functions are particularly nice because they behave like standard POSIX open / read functions and use numbered file handles.  I would store the ROP chain in the number buffer and use the buffer overflow to gain control of EIP and repairing the stack cookie with the arbitrary read.
+Finally, I settled on a course of action.  I would use ROP to open the flag in "d:\flag.txt" and read it into the number buffer, and send it via the socket.  I would use the functions _sopen_s and _read from the uartbase.dll.  These functions are particularly nice because they behave like standard POSIX open / read functions and use numbered file handles.  I would store the ROP chain in the number buffer and use the buffer overflow to gain control of EIP and repair the stack cookie with the arbitrary read.
 
 # Part 1.  Stack Cookie
 The stack in this program is protected with a cookie and exception handlers.  Reading the cookie is fairly easy with the read functionality of the program.  Using a simple loop you can dump stack values until you find the return value for the function on the stack (index 287).  The saved base pointer (index 286) and cookie (index 285) are just above that on the stack.  See below:
@@ -63,7 +61,7 @@ The stack in this program is protected with a cookie and exception handlers.  Re
 I used python and pwntools to script dumping these values.  You can find the code for that in this folder (named pwnit.py).
 
 # Part 2.  ASLR
-To store the ROP chain in the number buffer and accurately jump to it with the overflow, I would need to know the address of the number buffer.  Surprising to me, the stack size of the parent function (which I named listener) was widly variable.  I struggled to accurately calculate the memory address of the buffer.  I ended up making a function to search for saved return addresses of both the connection handler and listener functions, grab the stored stack base pointers, and calculate the difference to to get the stack size of the listener.  With those values, I could accurately calculate the offset to the number buffer.  The formula was like this: (
+To store the ROP chain in the number buffer and accurately jump to it with the overflow, I would need to know the address of the number buffer.  Surprisingly to me, the stack size of the parent function (which I named listener) was wildly variable.  I struggled to accurately calculate the memory address of the buffer.  I ended up making a function to search for saved return addresses of both the connection handler and listener functions, grab the stored stack base pointers, and calculate the difference to find the stack size of the listener.  With those values, I could accurately calculate the offset to the number buffer.  The formula was: (listener_stack_size + connection_handler_saved_base_address) = connection_handler_stack_base_address.
 
 # Part 3. ucrtbase.dll
 **WARNING** This method won't always work.  I can't believe it did.  I got lucky? **WARNING**
@@ -72,7 +70,7 @@ My next struggle was that thanks to ASLR and Windows versioning I would need to 
 
 ![alt tag](https://raw.githubusercontent.com/psmitty7373/ctf-writeups/master/ACI-CS-2020/do_you_c_what_i_c/05.png)
 
-I spent many hours trying to dump the correct version of the target ucrtbase.dll file.  Always failing.  The server seemed to have a timer that would kill the program after a few minutes (seconds).  Instead I went to a very dark place.  You know those sites that pop up on your search when you look for dll names on google?  The ones offering you dll files for download?  Yeah, I went there.  Specifically I went to dllme.com.  They had 41 versions of ucrtbase.dll.  I only need to find one where the offsets made sence with the address I got from dumping the remote _initterm address.  It took like 39 tries, but I finally found one that made sense.
+I spent many hours trying to dump the correct version of the target ucrtbase.dll file.  Always failing.  The server seemed to have a timer that would kill the program after a few minutes (seconds).  Instead I went to a very dark place.  You know those sites that pop up on your search when you look for dll names on google?  The ones offering you dll files for download?  Yeah, I went there.  Specifically I went to dllme.com.  They had 41 versions of ucrtbase.dll.  I only need to find one where the offsets made sense with the address I got from dumping the remote _initterm address.  It took like 39 tries, but I finally found one that made sense.
 
 ![alt tag](https://raw.githubusercontent.com/psmitty7373/ctf-writeups/master/ACI-CS-2020/do_you_c_what_i_c/06.png)
 
@@ -104,13 +102,13 @@ This is a more in-depth breakdown of how I accomplished this:  The following not
 
 2. I allocated part of my dual/code stack number buffer as string / flag storage.  That would be at offset 0xdc in the buffer.
 
-3. & 4. Using the number-buffer as a dual code/stack segment I used a "add esp, 28; ret" gadget as the return for calls to _sopen_s and _read.  Then positioned the function addreses and their arguments in stack order.
+3. & 4. Using the number-buffer as a dual code/stack segment I used a "add esp, 28; ret" gadget as the return for calls to _sopen_s and _read.  Then positioned the function addresses and their arguments in stack order.
 
-5. The send function call in the connection handler function seemed like a good way to send our flag.  I just used its address and set up the parameters need to call it.  The only trick was that during the overflow the socket number was stored in the ECX register.  This gets blown away.  Luckily, for some odd reason, the socket number was stored like 30+ times on the stack in back-to-back.  I used the arbitrary read to grab that up.
+5. The send function call in the connection handler function seemed like a good way to send our flag.  I just used its address and set up the parameters needed to call it.  The only trick was that during the overflow the socket number was stored in the ECX register.  This gets blown away.  Luckily, for some odd reason, the socket number was stored like 30+ times on the stack in back-to-back.  I used the arbitrary read to grab that up.
 
 6. This function call handles writing all our ROP nonsense to the buffer.
 
-7. This payload is the buffer-overflow that kicks everything off.  It makes sure to re-write the stack cookie to prevent execeptions and handles pivoting the stack to the ROP chain living in the number buffer.
+7. This payload is the buffer-overflow that kicks everything off.  It makes sure to re-write the stack cookie to prevent exceptions and handles pivoting the stack to the ROP chain living in the number buffer.
 ```python
 # (2)
 write(b'D:\\flag.txt\00', where=buf_addr + 0xdc) # store the file name in the number buffer at 0xdc
@@ -143,10 +141,12 @@ send_payload = struct.pack('<I', exe_base + 0x138b) + # return to the listener a
 	struct.pack('<I', 36) + # the length
 	struct.pack('<I', 0x0) # flags
 
-(6)
+#(6)
+# write the assembled rop chain to the buffer
 write(open_payload + read_payload + send_payload, where=buf_addr + 64)
 
-(7)
+#(7)
+# the assembled buffer oveflow with cookie and rop stack pivot
 payload = b'a' * 0x10 +
 	struct.pack('<I', conn_cookie) + # stack cookie (yum)
 	b'ZZZZ' + struct.pack('<I', pop_ebp_ret) + # junk
@@ -155,7 +155,7 @@ payload = b'a' * 0x10 +
 	b'b'*256
 ```
 
-# Part 5:
+# Part 5. The Result
 *** Note: this is what the output looks like on a local run, not the real target***
 ```bash
 found: 0x20122e at 287
