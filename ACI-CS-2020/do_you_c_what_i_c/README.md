@@ -74,7 +74,7 @@ I spent many hours trying to dump the correct version of the target ucrtbase.dll
 
 ![alt tag](https://raw.githubusercontent.com/psmitty7373/ctf-writeups/master/ACI-CS-2020/do_you_c_what_i_c/06.png)
 
-This is kinda how that played out.  I would use the arbitrary read, and grab the current IAP address for _initterm.  I would get a value like: _initterm_addr: 0x7656b4a0. I would then use a program called "DLL Export Viewer" to check the offset for _initterm in one of the random ucrtbase.dll versions I got from dllme.  
+This is kinda how that played out.  I would use the arbitrary read, and grab the current IAT address for _initterm.  I would get a value like: _initterm_addr: 0x7656b4a0. I would then use a program called "DLL Export Viewer" to check the offset for _initterm in one of the random ucrtbase.dll versions I got from dllme.  
 
 ![alt tag](https://raw.githubusercontent.com/psmitty7373/ctf-writeups/master/ACI-CS-2020/do_you_c_what_i_c/07.png)
 
@@ -82,7 +82,7 @@ This would give a value like 0x26ca0 that you see above.  Subtract this offset f
 
 ![alt tag](https://raw.githubusercontent.com/psmitty7373/ctf-writeups/master/ACI-CS-2020/do_you_c_what_i_c/08.png)
 
-After trying many versions of ucrtbase.dll to find one where the offsets made sense with the values in the programs IAP, I finally found ucrtbase.dll version 10.0.14393.0.  This one had _initterm at an offset of 0x3a4a0.  0x7656b4a0 - 0x3a4a0 = 0x76531000.  Money.  Note, you would want to check more than one function to better improve your chances of signaturing the right version of the dll.
+After trying many versions of ucrtbase.dll to find one where the offsets made sense with the values in the programs IAT, I finally found ucrtbase.dll version 10.0.14393.0.  This one had _initterm at an offset of 0x3a4a0.  0x7656b4a0 - 0x3a4a0 = 0x76531000.  Money.  Note, you would want to check more than one function to better improve your chances of signaturing the right version of the dll.
 
 Once I had the right dll, I could calculate the function offset address to any function in it.  I already said I'd like to open and read the flag file, so I chose to look up _sopen_s and _read which were at offsets 0x3df10 and 0x28980 respectively.
 
